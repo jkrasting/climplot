@@ -48,6 +48,7 @@ from .maps import (
     map_figure,
     add_land_overlay,
     add_coastlines,
+    add_land_feature,
 )
 
 # Time series functions
@@ -97,6 +98,7 @@ __all__ = [
     "map_figure",
     "add_land_overlay",
     "add_coastlines",
+    "add_land_feature",
     # Time series
     "timeseries_figure",
     # Panels
