@@ -27,8 +27,8 @@ class TestColormaps:
     def test_anomaly_cmap_symmetric(self):
         """Test that levels are symmetric around zero."""
         cmap, norm, levels = climplot.anomaly_cmap(-0.5, 0.5, 0.1)
-        assert levels[0] == -levels[-1]
-        assert 0.0 in levels
+        np.testing.assert_almost_equal(levels[0], -levels[-1], decimal=10)
+        assert np.isclose(levels, 0.0).any()
 
     def test_discrete_cmap_extend(self):
         """Test that extend parameter is respected."""
