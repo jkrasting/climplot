@@ -208,9 +208,9 @@ def add_colorbar(
     max_ticks = kwargs.pop("max_ticks", 7)
 
     if orientation == "horizontal":
-        cbar_kwargs = {"orientation": "horizontal", "pad": 0.05, "fraction": 0.046}
+        cbar_kwargs = {"orientation": "horizontal", "pad": 0.05, "fraction": 0.046, "aspect": 35}
     else:
-        cbar_kwargs = {"orientation": "vertical", "pad": 0.05, "fraction": 0.046}
+        cbar_kwargs = {"orientation": "vertical", "pad": 0.05, "fraction": 0.046, "aspect": 35}
 
     cbar_kwargs.update(kwargs)
     cbar = plt.colorbar(mappable, ax=ax, extend=extend, **cbar_kwargs)
@@ -275,6 +275,7 @@ def bottom_colorbar(
         orientation="horizontal",
         pad=0.05,
         fraction=0.03,
+        aspect=35,
         extend=extend,
         **kwargs,
     )
