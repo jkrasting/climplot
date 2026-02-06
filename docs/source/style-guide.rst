@@ -158,3 +158,9 @@ Common Pitfalls
 8. Don't forget ``extend='both'`` on colorbars
 9. Don't add gridlines to maps
 10. Don't save without ``bbox_inches='tight'``
+
+See Also
+--------
+
+For a beginner-friendly version of this guide with visual examples, see
+`docs/plotting-guide.md <../plotting-guide.md>`_.
