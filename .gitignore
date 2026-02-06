@@ -78,3 +78,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code context (local only)
+CLAUDE.md
