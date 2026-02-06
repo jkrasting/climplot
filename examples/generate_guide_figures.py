@@ -222,10 +222,7 @@ def fig_good_vs_bad_intervals():
     cs1 = ax1.pcolormesh(lon, lat, data, cmap=bad_cmap, norm=bad_norm,
                          transform=ccrs.PlateCarree())
     add_land_feature(ax1)
-    cbar1 = plt.colorbar(cs1, ax=ax1, orientation="horizontal", pad=0.05,
-                         fraction=0.046, extend="both")
-    cbar1.set_label("Awkward intervals (0.07)", fontsize=8)
-    cbar1.ax.tick_params(labelsize=7)
+    cbar1 = climplot.add_colorbar(cs1, ax1, "Awkward intervals (0.07)", max_ticks=5)
     ax1.set_title("Avoid: awkward intervals (0.07)", fontsize=10,
                   color="#d62728")
 
@@ -320,10 +317,7 @@ def fig_pitfall_jet_vs_rdbu():
     cs1 = ax1.pcolormesh(lon, lat, data, cmap="jet", vmin=-0.3, vmax=0.3,
                          transform=ccrs.PlateCarree())
     add_land_feature(ax1)
-    cbar1 = plt.colorbar(cs1, ax=ax1, orientation="horizontal", pad=0.05,
-                         fraction=0.046)
-    cbar1.set_label("Continuous jet (avoid!)", fontsize=8)
-    cbar1.ax.tick_params(labelsize=7)
+    cbar1 = climplot.add_colorbar(cs1, ax1, "Continuous jet (avoid!)")
     ax1.set_title("Avoid: jet + continuous colormap", fontsize=10,
                   color="#d62728")
 

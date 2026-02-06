@@ -139,6 +139,36 @@ def add_panel_labels(
         )
 
 
+def _thin_colorbar_ticks(cbar, max_ticks=7):
+    """Reduce colorbar ticks to at most *max_ticks* evenly-spaced values.
+
+    The auto-generated ticks are checked first; if fewer than
+    *max_ticks* are present they are left untouched.  Otherwise, for
+    ``BoundaryNorm`` colorbars, tick positions are replaced with
+    *max_ticks* values evenly spaced between the first and last
+    boundary (rounded to remove floating-point noise).  For other norms,
+    auto-generated ticks are thinned by selecting evenly-spaced indices.
+    """
+    ticks = cbar.get_ticks()
+    if len(ticks) < max_ticks:
+        return
+
+    norm = cbar.mappable.norm
+    if hasattr(norm, "boundaries"):
+        boundaries = np.asarray(norm.boundaries)
+        # Use linspace to get clean, evenly-spaced values across the range
+        subset = np.linspace(boundaries[0], boundaries[-1], max_ticks)
+        # Round to remove floating-point noise (e.g. 5.55e-17 → 0.0)
+        span = abs(boundaries[-1] - boundaries[0])
+        decimals = max(0, int(-np.floor(np.log10(span / max_ticks))) + 2)
+        subset = np.round(subset, decimals)
+    else:
+        indices = np.round(np.linspace(0, len(ticks) - 1, max_ticks)).astype(int)
+        subset = ticks[indices]
+
+    cbar.set_ticks(subset)
+
+
 def add_colorbar(
     mappable,
     ax: plt.Axes,
@@ -175,6 +205,8 @@ def add_colorbar(
     >>> cs = ax.pcolormesh(lon, lat, data)
     >>> cbar = climplot.add_colorbar(cs, ax, 'Temperature (K)')
     """
+    max_ticks = kwargs.pop("max_ticks", 7)
+
     if orientation == "horizontal":
         cbar_kwargs = {"orientation": "horizontal", "pad": 0.05, "fraction": 0.046}
     else:
@@ -184,6 +216,9 @@ def add_colorbar(
     cbar = plt.colorbar(mappable, ax=ax, extend=extend, **cbar_kwargs)
     cbar.set_label(label, fontsize=8)
     cbar.ax.tick_params(labelsize=8)
+
+    if max_ticks is not None:
+        _thin_colorbar_ticks(cbar, max_ticks)
 
     return cbar
 
@@ -226,6 +261,8 @@ def bottom_colorbar(
     ...     cs = ax.pcolormesh(lon, lat, data)
     >>> cbar = climplot.bottom_colorbar(cs, fig, axes, 'SSH (m)')
     """
+    max_ticks = kwargs.pop("max_ticks", 7)
+
     # Flatten axes
     if hasattr(axes, "flatten"):
         axes_flat = axes.flatten()
@@ -243,6 +280,9 @@ def bottom_colorbar(
     )
     cbar.set_label(label, fontsize=8)
     cbar.ax.tick_params(labelsize=8)
+
+    if max_ticks is not None:
+        _thin_colorbar_ticks(cbar, max_ticks)
 
     return cbar
 
