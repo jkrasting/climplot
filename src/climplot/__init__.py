@@ -22,7 +22,9 @@ See Also
 - Source: https://github.com/jkrasting/climplot
 """
 
-__version__ = "0.1.0"
+from importlib.metadata import version as _version
+
+__version__ = _version("climplot")
 
 # Style functions
 from .style import (

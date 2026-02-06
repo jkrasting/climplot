@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "climplot"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Publication-quality climate science plotting utilities"
 readme = "README.md"
 license = {text = "MIT"}
@@ -70,3 +70,5 @@ target-version = ["py310", "py311", "py312"]
 line-length = 88
 select = ["E", "F", "W", "I", "N", "D", "UP"]
 ignore = ["D100", "D104"]
+
+[tool.setuptools_scm]
