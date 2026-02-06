@@ -1,0 +1,37 @@
+# climplot presentation style
+# For slides/posters: 7" width, 12-16pt fonts, 150 DPI
+# Usage: plt.style.use('climplot/data/presentation.mplstyle')
+
+# Font sizes (larger for readability)
+font.size: 14
+axes.labelsize: 14
+axes.titlesize: 16
+xtick.labelsize: 14
+ytick.labelsize: 14
+legend.fontsize: 12
+
+# Figure settings
+figure.figsize: 7.0, 4.2
+figure.dpi: 150
+savefig.dpi: 150
+savefig.bbox: tight
+savefig.facecolor: white
+
+# Line widths (thicker for visibility)
+axes.linewidth: 1.2
+grid.linewidth: 0.5
+lines.linewidth: 2.5
+
+# Grid
+axes.grid: False
+grid.alpha: 0.3
+
+# Legend
+legend.frameon: False
+legend.loc: best
+
+# PDF output
+pdf.fonttype: 42
+
+# Colors
+axes.prop_cycle: cycler('color', ['1f77b4', 'ff7f0e', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf'])

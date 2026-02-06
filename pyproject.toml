@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "climplot"
+version = "0.1.0"
+description = "Publication-quality climate science plotting utilities"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "John Krasting", email = "john.krasting@noaa.gov"}
+]
+keywords = ["climate", "plotting", "visualization", "cartopy", "xarray", "oceanography"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib>=3.7",
+    "numpy>=1.24",
+    "xarray>=2023.1",
+    "cartopy>=0.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1",
+]
+docs = [
+    "sphinx>=6.0",
+    "sphinx-rtd-theme>=1.3",
+    "sphinx-gallery>=0.14",
+    "nbsphinx>=0.9",
+]
+all = ["climplot[dev,docs]"]
+
+[project.urls]
+Homepage = "https://github.com/jkrasting/climplot"
+Documentation = "https://climplot.readthedocs.io"
+Repository = "https://github.com/jkrasting/climplot"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+climplot = ["data/*.mplstyle"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=climplot"
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "N", "D", "UP"]
+ignore = ["D100", "D104"]
