@@ -115,15 +115,33 @@ def add_land_overlay(
 
     Draws a solid color layer over land points (wet=0), ensuring
     continents appear uniformly regardless of underlying data values.
+    Uses pcolormesh internally, so ``lon`` and ``lat`` must be cell-center
+    coordinates (same shape as ``wet_mask``).
+
+    .. note::
+
+       When the data pcolormesh uses **corner** coordinates (e.g.
+       ``geolon_c`` / ``geolat_c``), this function should not be used
+       because the coordinate shapes will not match. Instead, set a gray
+       axis background before plotting::
+
+           ax.set_facecolor("#808080")
+           ax.pcolormesh(geolon_c, geolat_c, data, ...)
+
+       Model data is NaN over land, so the gray background shows through
+       and reveals the model's true coastline.
+
+       For regridded or observational data (no wet mask available), use
+       :func:`add_land_feature` instead.
 
     Parameters
     ----------
     ax : GeoAxes
         Map axes to add overlay to
     lon : array-like
-        2D longitude array
+        2D longitude array (cell centers, same shape as wet_mask)
     lat : array-like
-        2D latitude array
+        2D latitude array (cell centers, same shape as wet_mask)
     wet_mask : array-like
         Wet mask where 1 = ocean, 0 = land
     land_color : str, optional
