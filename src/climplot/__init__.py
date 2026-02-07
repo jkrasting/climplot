@@ -49,6 +49,9 @@ from .maps import (
     add_land_overlay,
     add_coastlines,
     add_land_feature,
+    set_land_background,
+    mask_land,
+    plot_ocean_field,
 )
 
 # Time series functions
@@ -99,6 +102,9 @@ __all__ = [
     "add_land_overlay",
     "add_coastlines",
     "add_land_feature",
+    "set_land_background",
+    "mask_land",
+    "plot_ocean_field",
     # Time series
     "timeseries_figure",
     # Panels

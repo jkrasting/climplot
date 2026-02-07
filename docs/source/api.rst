@@ -21,9 +21,33 @@ Colormap Functions
 Map Functions
 -------------
 
+General
+~~~~~~~
+
 .. autofunction:: climplot.map_figure
-.. autofunction:: climplot.add_land_overlay
+
+Native Ocean-Model Grids
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use these for tripolar / MOM6 grids where Cartopy coastlines do not align
+with the model's land/sea mask.
+
+.. autofunction:: climplot.plot_ocean_field
+.. autofunction:: climplot.set_land_background
+.. autofunction:: climplot.mask_land
+
+Regular / Regridded Grids
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use these for observational or regridded data on regular lat/lon grids.
+
+.. autofunction:: climplot.add_land_feature
 .. autofunction:: climplot.add_coastlines
+
+Legacy
+~~~~~~
+
+.. autofunction:: climplot.add_land_overlay
 
 Time Series Functions
 ---------------------

@@ -4,12 +4,43 @@ Map plotting utilities with Cartopy projections.
 This module provides functions for creating publication-quality maps
 with appropriate projections, coastlines, and land overlays.
 
+Two workflows for rendering land
+---------------------------------
+Choose based on your grid type:
+
+* **Regular / regridded grids** (observations, reanalysis on 1°×1°):
+  Use :func:`map_figure` + :func:`add_land_feature` (filled gray continents
+  from Natural Earth) and optionally :func:`add_coastlines`.
+
+* **Native ocean-model grids** (tripolar, MOM6):
+  Use :func:`plot_ocean_field`, which bundles the recommended workflow:
+  gray background for land, optional land masking via ``wet_mask``, and
+  plotting with pcolormesh/contourf/contour.  Do **not** use
+  :func:`add_land_feature` or :func:`add_coastlines` on native grids —
+  Cartopy coastlines will not align with the model's land/sea boundary.
+
+Coordinate conventions for ``plot_ocean_field``
+------------------------------------------------
+* ``method="pcolormesh"`` → pass **corner** coordinates (``geolon_c``,
+  ``geolat_c``).
+* ``method="contourf"`` or ``"contour"`` → pass **center** coordinates
+  (``geolon``, ``geolat``).
+
 Examples
 --------
->>> import climplot
->>> climplot.publication()
+Regular grid:
+
+>>> import climplot, cartopy.crs as ccrs
 >>> fig, ax = climplot.map_figure()
 >>> cs = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree())
+>>> climplot.add_land_feature(ax)
+
+Native ocean-model grid:
+
+>>> fig, ax = climplot.map_figure()
+>>> cs = climplot.plot_ocean_field(
+...     ax, geolon_c, geolat_c, sst, wet_mask=wet,
+... )
 """
 
 import matplotlib.pyplot as plt
@@ -122,14 +153,9 @@ def add_land_overlay(
 
        When the data pcolormesh uses **corner** coordinates (e.g.
        ``geolon_c`` / ``geolat_c``), this function should not be used
-       because the coordinate shapes will not match. Instead, set a gray
-       axis background before plotting::
-
-           ax.set_facecolor("#808080")
-           ax.pcolormesh(geolon_c, geolat_c, data, ...)
-
-       Model data is NaN over land, so the gray background shows through
-       and reveals the model's true coastline.
+       because the coordinate shapes will not match. Use
+       :func:`plot_ocean_field` instead, or call
+       :func:`set_land_background` before plotting manually.
 
        For regridded or observational data (no wet mask available), use
        :func:`add_land_feature` instead.
@@ -208,8 +234,9 @@ def add_coastlines(
 
     Notes
     -----
-    For model data on native grids, consider using add_land_overlay()
-    instead of coastlines, as coastlines may not align with the model grid.
+    For model data on native grids (e.g. tripolar ocean models), Cartopy
+    coastlines will not align with the model's land/sea mask. Use
+    :func:`plot_ocean_field` or :func:`add_land_overlay` instead.
     """
     ax.coastlines(resolution=resolution, linewidth=linewidth, color=color, **kwargs)
 
@@ -246,3 +273,138 @@ def add_land_feature(
         "physical", "land", resolution, facecolor=facecolor, edgecolor=edgecolor
     )
     ax.add_feature(land, **kwargs)
+
+
+def set_land_background(ax: plt.Axes, land_color: str = "#808080"):
+    """
+    Set axis background color so NaN values render as land.
+
+    For native ocean-model grids, data is typically NaN over land.
+    Setting the axis facecolor to a land-like color makes these NaN
+    regions appear as land without needing a separate overlay.
+
+    Parameters
+    ----------
+    ax : GeoAxes
+        Map axes.
+    land_color : str, optional
+        Background color for land. Default is '#808080' (medium gray).
+
+    Examples
+    --------
+    >>> fig, ax = climplot.map_figure()
+    >>> climplot.set_land_background(ax)
+    >>> ax.pcolormesh(geolon_c, geolat_c, data, transform=ccrs.PlateCarree())
+    """
+    ax.set_facecolor(land_color)
+
+
+def mask_land(data, wet_mask):
+    """
+    Mask land points by setting them to NaN.
+
+    Parameters
+    ----------
+    data : array-like or xarray.DataArray
+        Data to mask. Must be broadcastable with ``wet_mask``.
+    wet_mask : array-like or xarray.DataArray
+        Mask where 1 = ocean and 0 = land.
+
+    Returns
+    -------
+    masked : same type as ``data``
+        Copy of ``data`` with land points set to NaN.
+
+    Examples
+    --------
+    >>> masked_sst = climplot.mask_land(sst, wet_mask)
+    """
+    try:
+        import xarray as xr
+
+        if isinstance(data, xr.DataArray) or isinstance(wet_mask, xr.DataArray):
+            return xr.where(wet_mask == 1, data, np.nan)
+    except ImportError:
+        pass
+
+    data = np.array(data, dtype=float)
+    wet_mask = np.asarray(wet_mask)
+    return np.where(wet_mask == 1, data, np.nan)
+
+
+def plot_ocean_field(
+    ax: plt.Axes,
+    lon,
+    lat,
+    data,
+    wet_mask=None,
+    land_color: str = "#808080",
+    method: str = "pcolormesh",
+    **kwargs,
+):
+    """
+    Plot an ocean field on a native model grid.
+
+    Convenience function that bundles the recommended workflow for
+    tripolar / native ocean-model grids:
+
+    1. Sets a gray background so NaN over land shows the model's coastline.
+    2. Optionally masks land points using ``wet_mask``.
+    3. Plots using the specified ``method``.
+
+    Parameters
+    ----------
+    ax : GeoAxes
+        Map axes (e.g. from :func:`map_figure`).
+    lon : array-like
+        Longitude coordinates. For ``method="pcolormesh"`` these should be
+        **corner** coordinates (e.g. ``geolon_c``). For ``"contourf"`` and
+        ``"contour"`` these should be **center** coordinates.
+    lat : array-like
+        Latitude coordinates (same convention as ``lon``).
+    data : array-like
+        2-D field to plot.
+    wet_mask : array-like, optional
+        Mask where 1 = ocean and 0 = land. If provided, land points in
+        ``data`` are set to NaN before plotting.
+    land_color : str, optional
+        Background color for land. Default is '#808080'.
+    method : str, optional
+        Plot method: ``"pcolormesh"`` (default), ``"contourf"``, or
+        ``"contour"``.
+    **kwargs
+        Forwarded to the underlying matplotlib plot call.
+
+    Returns
+    -------
+    artist : QuadMesh or QuadContourSet
+        The plot artist, suitable for passing to ``plt.colorbar()``.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is not one of the supported values.
+
+    Examples
+    --------
+    >>> fig, ax = climplot.map_figure()
+    >>> cs = climplot.plot_ocean_field(
+    ...     ax, geolon_c, geolat_c, sst, wet_mask=wet,
+    ... )
+    >>> plt.colorbar(cs, ax=ax)
+    """
+    valid_methods = ("pcolormesh", "contourf", "contour")
+    if method not in valid_methods:
+        raise ValueError(
+            f"Unknown method: {method!r}. Must be one of {valid_methods}"
+        )
+
+    set_land_background(ax, land_color)
+
+    if wet_mask is not None:
+        data = mask_land(data, wet_mask)
+
+    kwargs.setdefault("transform", ccrs.PlateCarree())
+
+    plot_func = getattr(ax, method)
+    return plot_func(lon, lat, data, **kwargs)
