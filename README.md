@@ -93,6 +93,8 @@ cmap, norm, levels = climplot.anomaly_cmap(-0.3, 0.3, 0.05, center_on_white=True
 
 ## Maps
 
+### Projections
+
 ```python
 # Robinson projection (Pacific-centered)
 fig, ax = climplot.map_figure()
@@ -103,6 +105,30 @@ fig, ax = climplot.map_figure(central_longitude=0)
 # Different projection
 fig, ax = climplot.map_figure(projection='mollweide')
 ```
+
+### Rendering Land: Two Workflows
+
+**Regular / regridded grids** (observations, reanalysis on 1°×1°, etc.):
+
+```python
+fig, ax = climplot.map_figure()
+cs = ax.pcolormesh(lon, lat, data, cmap=cmap, norm=norm,
+                   transform=ccrs.PlateCarree())
+climplot.add_land_feature(ax)    # filled gray continents from Natural Earth
+climplot.add_coastlines(ax)      # optional coastline outlines
+```
+
+**Native ocean-model grids** (tripolar, MOM6 — Cartopy coastlines won't align):
+
+```python
+fig, ax = climplot.map_figure()
+cs = climplot.plot_ocean_field(
+    ax, geolon_c, geolat_c, sst,
+    wet_mask=wet,   # 1=ocean, 0=land
+)
+```
+
+`plot_ocean_field` sets a gray background so NaN over land renders as the model's coastline, optionally masks land, and plots the data in one call. See the [Plotting Guide](docs/plotting-guide.md) for full details.
 
 ## Multi-panel Figures
 

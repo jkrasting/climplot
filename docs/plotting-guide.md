@@ -181,27 +181,46 @@ fig, ax = climplot.map_figure(projection='orthographic')  # Globe view
 
 ### Rendering Land
 
-There are two approaches depending on your data source:
+There are **two workflows** for rendering land, and picking the wrong one produces visible coastline artifacts. The choice depends on your grid type:
 
-**For observational or regridded data** (regular lat/lon grids), add a land feature from Natural Earth. This draws filled gray continents on top of the data:
+| Grid type | Workflow | Functions |
+|---|---|---|
+| Regular / regridded (obs, reanalysis) | Cartopy Natural Earth land | `climplot.add_land_feature()` + `climplot.add_coastlines()` |
+| Native ocean-model (tripolar, MOM6) | Gray background + NaN masking | `climplot.plot_ocean_field()` |
 
-```python
-from climplot.maps import add_land_feature
+#### Regular / regridded grids
 
-fig, ax = climplot.map_figure()
-cs = ax.pcolormesh(lon, lat, data, cmap=cmap, norm=norm,
-                   transform=ccrs.PlateCarree())
-add_land_feature(ax)
-```
-
-**For model data on native grids**, coastlines from Natural Earth won't align with the model's land/ocean mask. Instead, use an explicit gray overlay with the model's wet mask:
+Add a filled land feature from Natural Earth. This draws gray continents on top of the data and works well because Cartopy coastlines align with regular-grid data:
 
 ```python
 fig, ax = climplot.map_figure()
 cs = ax.pcolormesh(lon, lat, data, cmap=cmap, norm=norm,
                    transform=ccrs.PlateCarree())
-climplot.add_land_overlay(ax, lon, lat, wet_mask)
+climplot.add_land_feature(ax)      # filled gray continents
+climplot.add_coastlines(ax)        # optional coastline outlines
 ```
+
+#### Native ocean-model grids
+
+Cartopy coastlines **will not align** with the model's land/sea mask, producing ugly artifacts along coastlines. Use `plot_ocean_field()` instead, which bundles three steps:
+
+1. Sets the axis background to gray so NaN values render as land
+2. Optionally masks land points using `wet_mask` (1=ocean, 0=land)
+3. Plots the data with pcolormesh, contourf, or contour
+
+```python
+fig, ax = climplot.map_figure()
+cs = climplot.plot_ocean_field(
+    ax, geolon_c, geolat_c, sst,
+    wet_mask=wet,          # 1=ocean, 0=land
+    method="pcolormesh",   # default; also "contourf", "contour"
+    cmap=cmap, norm=norm,
+)
+```
+
+> **Coordinate convention:** `pcolormesh` requires **corner** coordinates (`geolon_c`/`geolat_c`). `contourf` and `contour` require **center** coordinates (`geolon`/`geolat`). Passing the wrong type causes a half-cell shift.
+
+> **Tip:** If you need contourf/contour (which use center coordinates), you can also call `set_land_background(ax)` and `mask_land(data, wet)` manually instead of `plot_ocean_field`.
 
 **Do NOT** add cartopy gridlines to maps — they clutter global projections.
 
@@ -358,14 +377,17 @@ See the [Metrics documentation](source/metrics.rst) for the full API.
 
 ## Complete Workflow
 
-Here is a complete script that goes from import to saved figure:
+Two complete scripts — pick the one that matches your data.
+
+### Example A: Regridded / Observational Data
+
+For data on a regular lat/lon grid (e.g., HadISST, ERA5 regridded):
 
 ```python
-"""Complete example: global anomaly map with climplot."""
+"""Complete example: regridded data on a regular grid."""
 import numpy as np
 import cartopy.crs as ccrs
 import climplot
-from climplot.maps import add_land_feature
 
 # 1. Set style
 climplot.publication()
@@ -386,11 +408,12 @@ fig, ax = climplot.map_figure(figsize=(7.0, 4.0))
 cs = ax.pcolormesh(
     lon, lat, data,
     cmap=cmap, norm=norm,
-    transform=ccrs.PlateCarree()
+    transform=ccrs.PlateCarree(),
 )
 
 # 6. Add land and colorbar (with units!)
-add_land_feature(ax)
+climplot.add_land_feature(ax)
+climplot.add_coastlines(ax)
 climplot.add_colorbar(cs, ax, 'Temperature Anomaly (K)')
 
 # 7. Title
@@ -398,6 +421,47 @@ ax.set_title('Global Temperature Anomaly')
 
 # 8. Save
 climplot.save_figure('temperature_anomaly.png')
+```
+
+### Example B: Native Ocean-Model Grid
+
+For data on a tripolar / MOM6 native grid (e.g., reading directly from model output):
+
+```python
+"""Complete example: native ocean-model grid with plot_ocean_field."""
+import xarray as xr
+import climplot
+
+# 1. Set style
+climplot.publication()
+
+# 2. Load model data (typical MOM6 file pattern)
+ds = xr.open_dataset("ocean_monthly.nc")
+sst = ds["tos"].isel(time=0)           # sea surface temperature
+wet = ds["wet"]                         # 1=ocean, 0=land
+
+# Corner coordinates for pcolormesh
+grid = xr.open_dataset("ocean_static.nc")
+geolon_c = grid["geolon_c"]
+geolat_c = grid["geolat_c"]
+
+# 3. Set up colormap
+cmap, norm, levels = climplot.sequential_cmap(vmin=-2, vmax=32, interval=2)
+
+# 4. Create the map and plot in one call
+fig, ax = climplot.map_figure(figsize=(7.0, 4.0))
+cs = climplot.plot_ocean_field(
+    ax, geolon_c, geolat_c, sst,
+    wet_mask=wet,
+    cmap=cmap, norm=norm,
+)
+
+# 5. Colorbar and title
+climplot.add_colorbar(cs, ax, 'SST (°C)')
+ax.set_title('Sea Surface Temperature — Native Grid')
+
+# 6. Save
+climplot.save_figure('native_grid_sst.png')
 ```
 
 ---
@@ -521,26 +585,40 @@ Cartopy coastlines won't match model land/ocean masks, creating ugly misalignmen
 # Wrong for model native grids
 ax.coastlines()
 
-# Right — use the model's own wet mask
-climplot.add_land_overlay(ax, lon, lat, wet_mask)
+# Right — use plot_ocean_field (recommended)
+cs = climplot.plot_ocean_field(ax, geolon_c, geolat_c, data, wet_mask=wet)
+
+# Alternative — add_land_overlay for center-coord pcolormesh already on the axes
+climplot.add_land_overlay(ax, geolon, geolat, wet_mask)
 ```
 
 ### 12. No Explicit Land Rendering
 
-Relying on background color for land means any change to the figure background breaks the land appearance.
+Relying on the default background color for land means any change to the figure background breaks the land appearance.
 
 ```python
 # Wrong — no land rendering
 cs = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree())
 
-# Right — explicit gray land
-from climplot.maps import add_land_feature
-add_land_feature(ax)
+# Right for regular grids — Cartopy filled continents
+climplot.add_land_feature(ax)
+
+# Right for native model grids — use plot_ocean_field (handles land automatically)
+cs = climplot.plot_ocean_field(ax, geolon_c, geolat_c, data, wet_mask=wet)
 ```
 
 ---
 
 ## Quick Reference
+
+### Land-Rendering Decision
+
+| Grid type | Workflow | Functions |
+|---|---|---|
+| **Native ocean-model** (tripolar, MOM6) | Gray background + NaN masking | `climplot.plot_ocean_field()` |
+| **Regular / regridded** (obs, reanalysis) | Cartopy Natural Earth land | `climplot.add_land_feature()` + `climplot.add_coastlines()` |
+
+### Function Reference
 
 | Function | Description |
 |----------|-------------|
@@ -551,9 +629,12 @@ add_land_feature(ax)
 | `climplot.sequential_cmap(vmin, vmax, interval)` | Sequential colormap for positive data |
 | `climplot.discrete_cmap(vmin, vmax, interval)` | General discrete colormap |
 | `climplot.map_figure()` | Create map with Cartopy projection |
-| `climplot.add_land_overlay(ax, lon, lat, wet_mask)` | Gray land overlay using model wet mask |
-| `climplot.add_coastlines(ax)` | Add coastlines to map |
-| `add_land_feature(ax)` | Add filled land from Natural Earth (`from climplot.maps import add_land_feature`) |
+| `climplot.plot_ocean_field(ax, lon, lat, data)` | Plot ocean field on native model grid (bundles background + mask + plot) |
+| `climplot.set_land_background(ax)` | Set axis background to gray for NaN-as-land rendering |
+| `climplot.mask_land(data, wet_mask)` | Mask land points to NaN using wet_mask (1=ocean, 0=land) |
+| `climplot.add_land_feature(ax)` | Add filled gray continents from Natural Earth (regular grids) |
+| `climplot.add_coastlines(ax)` | Add coastline outlines (regular grids) |
+| `climplot.add_land_overlay(ax, lon, lat, wet_mask)` | Legacy gray overlay using center-coord pcolormesh |
 | `climplot.timeseries_figure()` | Create time series figure with grid |
 | `climplot.panel_figure(nrows, ncols)` | Create multi-panel figure |
 | `climplot.add_panel_labels(axes)` | Add bold a. b. c. d. labels |
