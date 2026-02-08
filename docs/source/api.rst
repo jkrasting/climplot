@@ -26,6 +26,15 @@ General
 
 .. autofunction:: climplot.map_figure
 
+Atmosphere / Regular Grids
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use these for atmosphere, reanalysis, and observational data on regular
+lat/lon grids.
+
+.. autofunction:: climplot.plot_atmos_field
+.. autofunction:: climplot.add_gridlines
+
 Native Ocean-Model Grids
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

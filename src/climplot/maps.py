@@ -4,11 +4,17 @@ Map plotting utilities with Cartopy projections.
 This module provides functions for creating publication-quality maps
 with appropriate projections, coastlines, and land overlays.
 
-Two workflows for rendering land
----------------------------------
+Three workflows for rendering land
+-----------------------------------
 Choose based on your grid type:
 
-* **Regular / regridded grids** (observations, reanalysis on 1°×1°):
+* **Atmosphere / regular grids** (reanalysis, CMIP atmosphere, obs):
+  Use :func:`plot_atmos_field`, which renders in three layers: light-gray
+  Natural Earth land underneath, data with slight transparency on top, and
+  thin coastline outlines on top of everything.  Optionally add
+  :func:`add_gridlines` for subtle dotted lat/lon lines.
+
+* **Regular / regridded ocean grids** (observations, reanalysis on 1°×1°):
   Use :func:`map_figure` + :func:`add_land_feature` (filled gray continents
   from Natural Earth) and optionally :func:`add_coastlines`.
 
@@ -28,7 +34,13 @@ Coordinate conventions for ``plot_ocean_field``
 
 Examples
 --------
-Regular grid:
+Atmosphere / regular grid:
+
+>>> import climplot
+>>> fig, ax = climplot.map_figure()
+>>> cs = climplot.plot_atmos_field(ax, lon, lat, temperature)
+
+Regular grid (manual workflow):
 
 >>> import climplot, cartopy.crs as ccrs
 >>> fig, ax = climplot.map_figure()
@@ -408,3 +420,191 @@ def plot_ocean_field(
 
     plot_func = getattr(ax, method)
     return plot_func(lon, lat, data, **kwargs)
+
+
+def plot_atmos_field(
+    ax: plt.Axes,
+    lon,
+    lat,
+    data,
+    method: str = "contourf",
+    land: bool = True,
+    coastlines: bool = True,
+    land_color: str = "#e0e0e0",
+    land_resolution: str = "110m",
+    coastline_linewidth: float = 0.3,
+    alpha: float = 0.85,
+    **kwargs,
+):
+    """
+    Plot an atmosphere or observational field on a regular grid.
+
+    Convenience function that bundles the recommended workflow for
+    atmosphere, reanalysis, and observational data on regular lat-lon
+    grids:
+
+    1. Optionally draws light Natural Earth continents underneath the data.
+    2. Plots the data with slight transparency so land shows through.
+    3. Optionally adds thin coastline outlines on top.
+
+    For ``contourf`` and ``contour``, ``extend="both"`` is set
+    automatically (unless overridden via *kwargs*) so that out-of-range
+    values are filled rather than left white.
+
+    Parameters
+    ----------
+    ax : GeoAxes
+        Map axes (e.g. from :func:`map_figure`).
+    lon : array-like
+        Longitude coordinates. May be 1-D or 2-D.
+    lat : array-like
+        Latitude coordinates. May be 1-D or 2-D.
+    data : array-like
+        2-D field to plot.
+    method : str, optional
+        Plot method: ``"contourf"`` (default), ``"pcolormesh"``, or
+        ``"contour"``.
+    land : bool, optional
+        If True (default), add filled Natural Earth land feature
+        underneath the data.
+    coastlines : bool, optional
+        If True (default), add coastline outlines on top.
+    land_color : str, optional
+        Fill color for land. Default is ``'#e0e0e0'`` (light gray).
+    land_resolution : str, optional
+        Natural Earth resolution: ``"110m"`` (default), ``"50m"``, or
+        ``"10m"``.
+    coastline_linewidth : float, optional
+        Linewidth for coastline outlines. Default is 0.3.
+    alpha : float, optional
+        Transparency for the plotted data layer. Default is 0.85.
+    **kwargs
+        Forwarded to the underlying matplotlib plot call.
+
+    Returns
+    -------
+    artist : QuadMesh or QuadContourSet
+        The plot artist, suitable for passing to ``plt.colorbar()``.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is not one of the supported values.
+
+    Examples
+    --------
+    >>> fig, ax = climplot.map_figure()
+    >>> cs = climplot.plot_atmos_field(ax, lon, lat, temperature)
+    >>> climplot.add_colorbar(cs, ax, 'Temperature (K)')
+
+    With pcolormesh and gridlines:
+
+    >>> fig, ax = climplot.map_figure()
+    >>> cs = climplot.plot_atmos_field(
+    ...     ax, lon, lat, precip, method="pcolormesh",
+    ... )
+    >>> climplot.add_gridlines(ax)
+    """
+    valid_methods = ("contourf", "pcolormesh", "contour")
+    if method not in valid_methods:
+        raise ValueError(
+            f"Unknown method: {method!r}. Must be one of {valid_methods}"
+        )
+
+    # 1. Draw land underneath the data (zorder=0 keeps it below plot artists)
+    if land:
+        add_land_feature(ax, resolution=land_resolution, facecolor=land_color, zorder=0)
+
+    # 2. Plot data on top with transparency
+    kwargs.setdefault("transform", ccrs.PlateCarree())
+    kwargs.setdefault("alpha", alpha)
+
+    if method in ("contourf", "contour"):
+        kwargs.setdefault("extend", "both")
+
+    plot_func = getattr(ax, method)
+    artist = plot_func(lon, lat, data, **kwargs)
+
+    # 3. Draw coastlines on top
+    if coastlines:
+        add_coastlines(ax, resolution=land_resolution, linewidth=coastline_linewidth)
+
+    return artist
+
+
+def add_gridlines(
+    ax: plt.Axes,
+    draw_labels: bool = False,
+    linewidth: float = 0.3,
+    color: str = "black",
+    alpha: float = 0.5,
+    linestyle: str = ":",
+    x_spacing: Optional[float] = None,
+    y_spacing: Optional[float] = None,
+    **kwargs,
+):
+    """
+    Add lat/lon gridlines to a map.
+
+    Provides subtle gridlines suitable for atmosphere and observational
+    maps. When ``x_spacing`` or ``y_spacing`` is given, uses
+    ``FixedLocator`` to place lines at regular intervals.
+
+    Parameters
+    ----------
+    ax : GeoAxes
+        Map axes (e.g. from :func:`map_figure`).
+    draw_labels : bool, optional
+        Draw coordinate labels on the axes. Only works reliably on
+        PlateCarree and Mercator projections. Default is False.
+    linewidth : float, optional
+        Grid line width. Default is 0.3.
+    color : str, optional
+        Grid line color. Default is 'black'.
+    alpha : float, optional
+        Grid line transparency. Default is 0.5.
+    linestyle : str, optional
+        Grid line style. Default is ':' (dotted).
+    x_spacing : float, optional
+        Longitude spacing in degrees. If None, Cartopy auto-selects.
+    y_spacing : float, optional
+        Latitude spacing in degrees. If None, Cartopy auto-selects.
+    **kwargs
+        Forwarded to ``ax.gridlines()``.
+
+    Returns
+    -------
+    gridliner : cartopy.mpl.gridliner.Gridliner
+        The gridliner object, which can be further customized.
+
+    Examples
+    --------
+    >>> fig, ax = climplot.map_figure()
+    >>> gl = climplot.add_gridlines(ax)
+
+    With custom spacing:
+
+    >>> gl = climplot.add_gridlines(ax, x_spacing=30, y_spacing=15)
+    """
+    from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+
+    gl = ax.gridlines(
+        draw_labels=draw_labels,
+        linewidth=linewidth,
+        color=color,
+        alpha=alpha,
+        linestyle=linestyle,
+        **kwargs,
+    )
+
+    if x_spacing is not None:
+        from matplotlib.ticker import FixedLocator
+
+        gl.xlocator = FixedLocator(np.arange(-180, 181, x_spacing))
+
+    if y_spacing is not None:
+        from matplotlib.ticker import FixedLocator
+
+        gl.ylocator = FixedLocator(np.arange(-90, 91, y_spacing))
+
+    return gl

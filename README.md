@@ -106,7 +106,22 @@ fig, ax = climplot.map_figure(central_longitude=0)
 fig, ax = climplot.map_figure(projection='mollweide')
 ```
 
-### Rendering Land: Two Workflows
+### Rendering Land: Three Workflows
+
+**Atmosphere / lat-lon grids** (reanalysis, CMIP atmos, observations):
+
+```python
+fig, ax = climplot.map_figure()
+cmap, norm, levels = climplot.anomaly_cmap(-2, 2, 0.5)
+cs = climplot.plot_atmos_field(
+    ax, lon, lat, temperature,
+    cmap=cmap, norm=norm, levels=levels,
+)
+climplot.add_gridlines(ax, x_spacing=30, y_spacing=30)  # optional
+climplot.add_colorbar(cs, ax, 'Temperature Anomaly (K)')
+```
+
+`plot_atmos_field` draws light-gray land underneath, plots data with slight transparency on top, and adds thin coastlines — all in one call.
 
 **Regular / regridded grids** (observations, reanalysis on 1°×1°, etc.):
 

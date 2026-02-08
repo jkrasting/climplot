@@ -181,12 +181,32 @@ fig, ax = climplot.map_figure(projection='orthographic')  # Globe view
 
 ### Rendering Land
 
-There are **two workflows** for rendering land, and picking the wrong one produces visible coastline artifacts. The choice depends on your grid type:
+There are **three workflows** for rendering land, and picking the wrong one produces visible coastline artifacts. The choice depends on your grid type:
 
 | Grid type | Workflow | Functions |
 |---|---|---|
-| Regular / regridded (obs, reanalysis) | Cartopy Natural Earth land | `climplot.add_land_feature()` + `climplot.add_coastlines()` |
+| Atmosphere / observations (reanalysis, CMIP atmos) | Bundled Natural Earth land | `climplot.plot_atmos_field()` |
+| Regular / regridded ocean (obs, reanalysis) | Manual Natural Earth land | `climplot.add_land_feature()` + `climplot.add_coastlines()` |
 | Native ocean-model (tripolar, MOM6) | Gray background + NaN masking | `climplot.plot_ocean_field()` |
+
+#### Atmosphere / observational grids
+
+Use `plot_atmos_field()` for atmosphere, reanalysis, and observational data on regular lat-lon grids. It renders in three layers: light-gray Natural Earth land underneath, data with slight transparency (`alpha=0.85`) on top so land shows through, and thin coastline outlines on top of everything. For `contourf` and `contour`, `extend="both"` is set automatically so out-of-range values get arrows instead of white holes.
+
+```python
+fig, ax = climplot.map_figure()
+cs = climplot.plot_atmos_field(
+    ax, lon, lat, temperature,
+    method="contourf",          # default; also "pcolormesh", "contour"
+    alpha=0.85,                 # default: slight transparency so land shows through
+    coastline_linewidth=0.3,    # default: thin coastlines
+    cmap=cmap, norm=norm, levels=levels,
+)
+climplot.add_gridlines(ax, x_spacing=30, y_spacing=30)  # optional
+climplot.add_colorbar(cs, ax, 'Temperature Anomaly (K)')
+```
+
+> **Tip:** `add_gridlines()` adds subtle dotted lat/lon gridlines (thin, black, low alpha), which are standard on atmosphere maps. Avoid `draw_labels=True` on Robinson or Mollweide projections — labels only work on PlateCarree and Mercator.
 
 #### Regular / regridded grids
 
@@ -221,8 +241,6 @@ cs = climplot.plot_ocean_field(
 > **Coordinate convention:** `pcolormesh` requires **corner** coordinates (`geolon_c`/`geolat_c`). `contourf` and `contour` require **center** coordinates (`geolon`/`geolat`). Passing the wrong type causes a half-cell shift.
 
 > **Tip:** If you need contourf/contour (which use center coordinates), you can also call `set_land_background(ax)` and `mask_land(data, wet)` manually instead of `plot_ocean_field`.
-
-**Do NOT** add cartopy gridlines to maps — they clutter global projections.
 
 ![Map example with Robinson projection](images/map_example.png)
 
@@ -377,7 +395,7 @@ See the [Metrics documentation](source/metrics.rst) for the full API.
 
 ## Complete Workflow
 
-Two complete scripts — pick the one that matches your data.
+Three complete scripts — pick the one that matches your data.
 
 ### Example A: Regridded / Observational Data
 
@@ -462,6 +480,43 @@ ax.set_title('Sea Surface Temperature — Native Grid')
 
 # 6. Save
 climplot.save_figure('native_grid_sst.png')
+```
+
+### Example C: Atmosphere / Reanalysis Data
+
+For atmosphere data on a regular lat/lon grid (e.g., ERA5, MERRA-2, CMIP atmosphere). `plot_atmos_field()` renders light-gray land underneath, data with slight transparency on top, and thin coastlines — all in one call. `add_gridlines()` adds subtle dotted lat/lon lines.
+
+```python
+"""Complete example: atmosphere data with plot_atmos_field."""
+import numpy as np
+import climplot
+
+# 1. Set style
+climplot.publication()
+
+# 2. Create synthetic data (replace with your real data)
+lon = np.arange(0.5, 360.5, 1.0)
+lat = np.arange(-89.5, 90.5, 1.0)
+LON, LAT = np.meshgrid(lon, lat)
+temperature = 2.0 * np.sin(np.radians(LAT * 3)) * np.cos(np.radians(LON * 2))
+
+# 3. Set up colormap with round intervals
+cmap, norm, levels = climplot.anomaly_cmap(vmin=-2, vmax=2, interval=0.5)
+
+# 4. Create the map and plot in one call
+fig, ax = climplot.map_figure(figsize=(7.0, 4.0))
+cs = climplot.plot_atmos_field(
+    ax, lon, lat, temperature,
+    cmap=cmap, norm=norm, levels=levels,
+)
+
+# 5. Add gridlines, colorbar, and title
+climplot.add_gridlines(ax, x_spacing=30, y_spacing=30)
+climplot.add_colorbar(cs, ax, 'Temperature Anomaly (K)')
+ax.set_title('Global Temperature Anomaly — ERA5')
+
+# 6. Save
+climplot.save_figure('atmos_temperature.png')
 ```
 
 ---
@@ -556,13 +611,16 @@ climplot.add_colorbar(cs, ax, 'Anomaly (m)')  # extend='both' by default
 
 ### 9. Gridlines on Maps
 
-Gridlines clutter global maps. Don't add them.
+For atmosphere maps, gridlines are part of the standard workflow — use `add_gridlines()` which draws thin, dotted, black lines at low opacity. For ocean maps, gridlines usually clutter the figure, so omit them.
 
 ```python
-# Wrong
+# Wrong — raw Cartopy gridlines with heavy defaults
 ax.gridlines()
 
-# Right — just don't add gridlines to maps
+# Right for atmosphere — subtle dotted gridlines via climplot
+climplot.add_gridlines(ax, x_spacing=30, y_spacing=30)
+
+# Right for ocean — no gridlines at all
 ```
 
 ### 10. Saving Without `bbox_inches='tight'`
@@ -615,8 +673,9 @@ cs = climplot.plot_ocean_field(ax, geolon_c, geolat_c, data, wet_mask=wet)
 
 | Grid type | Workflow | Functions |
 |---|---|---|
+| **Atmosphere / observations** (reanalysis, CMIP atmos) | Bundled Natural Earth land | `climplot.plot_atmos_field()` |
 | **Native ocean-model** (tripolar, MOM6) | Gray background + NaN masking | `climplot.plot_ocean_field()` |
-| **Regular / regridded** (obs, reanalysis) | Cartopy Natural Earth land | `climplot.add_land_feature()` + `climplot.add_coastlines()` |
+| **Regular / regridded ocean** (obs, reanalysis) | Manual Natural Earth land | `climplot.add_land_feature()` + `climplot.add_coastlines()` |
 
 ### Function Reference
 
@@ -629,7 +688,9 @@ cs = climplot.plot_ocean_field(ax, geolon_c, geolat_c, data, wet_mask=wet)
 | `climplot.sequential_cmap(vmin, vmax, interval)` | Sequential colormap for positive data |
 | `climplot.discrete_cmap(vmin, vmax, interval)` | General discrete colormap |
 | `climplot.map_figure()` | Create map with Cartopy projection |
+| `climplot.plot_atmos_field(ax, lon, lat, data)` | Plot atmosphere field: light-gray land underneath → data (alpha=0.85) → thin coastlines on top |
 | `climplot.plot_ocean_field(ax, lon, lat, data)` | Plot ocean field on native model grid (bundles background + mask + plot) |
+| `climplot.add_gridlines(ax)` | Add subtle dotted lat/lon gridlines (thin, black, low alpha) |
 | `climplot.set_land_background(ax)` | Set axis background to gray for NaN-as-land rendering |
 | `climplot.mask_land(data, wet_mask)` | Mask land points to NaN using wet_mask (1=ocean, 0=land) |
 | `climplot.add_land_feature(ax)` | Add filled gray continents from Natural Earth (regular grids) |

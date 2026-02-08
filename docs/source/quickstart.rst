@@ -54,6 +54,28 @@ Creating a Map
    # Save
    climplot.save_figure('my_map.png')
 
+Atmosphere Map
+~~~~~~~~~~~~~~
+
+For atmosphere or observational data, ``plot_atmos_field()`` bundles
+land, coastlines, and plotting in one call:
+
+.. code-block:: python
+
+   import climplot
+
+   climplot.publication()
+   fig, ax = climplot.map_figure()
+
+   cmap, norm, levels = climplot.anomaly_cmap(-2, 2, 0.5)
+   cs = climplot.plot_atmos_field(
+       ax, lon, lat, temperature,
+       cmap=cmap, norm=norm, levels=levels,
+   )
+   climplot.add_gridlines(ax, x_spacing=30, y_spacing=30)
+   climplot.add_colorbar(cs, ax, 'Temperature Anomaly (K)')
+   climplot.save_figure('atmos_map.png')
+
 Time Series Plot
 ~~~~~~~~~~~~~~~~
 

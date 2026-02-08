@@ -52,6 +52,8 @@ from .maps import (
     set_land_background,
     mask_land,
     plot_ocean_field,
+    plot_atmos_field,
+    add_gridlines,
 )
 
 # Time series functions
@@ -105,6 +107,8 @@ __all__ = [
     "set_land_background",
     "mask_land",
     "plot_ocean_field",
+    "plot_atmos_field",
+    "add_gridlines",
     # Time series
     "timeseries_figure",
     # Panels
