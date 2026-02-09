@@ -465,6 +465,9 @@ def bottom_colorbar(
     min_ticks = kwargs.pop("min_ticks", 5)
     label_fontsize = kwargs.pop("label_fontsize", plt.rcParams.get("axes.labelsize", 8))
     tick_fontsize = kwargs.pop("tick_fontsize", plt.rcParams.get("xtick.labelsize", 8))
+    pad = kwargs.pop("pad", 0.05)
+    fraction = kwargs.pop("fraction", 0.03)
+    aspect = kwargs.pop("aspect", 35)
 
     # Flatten axes
     if hasattr(axes, "flatten"):
@@ -476,9 +479,9 @@ def bottom_colorbar(
         mappable,
         ax=list(axes_flat),
         orientation="horizontal",
-        pad=0.05,
-        fraction=0.03,
-        aspect=35,
+        pad=pad,
+        fraction=fraction,
+        aspect=aspect,
         extend=extend,
         **kwargs,
     )
