@@ -153,6 +153,36 @@ Always pick contour-level intervals that end in **0, 1, 2, or 5**. These are the
 
 ![Good vs bad interval comparison](images/good_vs_bad_intervals.png)
 
+### Auto-Levels
+
+When the data range isn't known in advance, `auto_levels` picks a nice interval automatically. It selects an interval whose significant digit is 1, 2, or 5 and snaps the range to clean boundaries:
+
+```python
+interval, levels = climplot.auto_levels(data.min(), data.max(), n_levels=10)
+cmap, norm, _ = climplot.discrete_cmap(levels[0], levels[-1], interval)
+```
+
+This is useful in scripts that process multiple variables with different ranges — you don't need to hand-pick the interval each time.
+
+### Log-Scale Colormaps
+
+For data spanning orders of magnitude (e.g., tracer concentrations, aerosol optical depth), use `log_cmap` to create logarithmically-spaced boundaries. The `per_decade` parameter controls boundary density:
+
+| `per_decade` | Boundaries | Example |
+|---|---|---|
+| 1 | Powers of 10 | 0.01, 0.1, 1, 10, 100 |
+| 2 | Half-decades | 0.01, 0.03, 0.1, 0.3, 1, 3, ... |
+| 3 | 1-2-5 sequence | 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, ... |
+
+```python
+cmap, norm, levels = climplot.log_cmap(0.01, 100, per_decade=3)
+cs = ax.pcolormesh(lon, lat, data, cmap=cmap, norm=norm,
+                   transform=ccrs.PlateCarree())
+climplot.add_colorbar(cs, ax, 'Concentration (mg/L)')
+```
+
+> **Note:** `vmin` must be strictly positive — logarithmic scales cannot represent zero or negative values.
+
 ---
 
 ## Map Projections
@@ -264,6 +294,19 @@ climplot.bottom_colorbar(cs, fig, axes, 'Temperature Anomaly (K)')
 ```
 
 **Why units matter:** A colorbar without units is ambiguous. Is that 0.3 meters or 0.3 millimeters? Always include the unit in parentheses.
+
+### Colorbar Customization
+
+`add_colorbar` automatically thins ticks to produce clean labels. You can control this behavior with keyword arguments:
+
+- **`max_ticks`** / **`min_ticks`** — control tick density (defaults: 9 / 5). Tick thinning selects actual boundary values (never interpolated), preferring round numbers. Symmetric colormaps get symmetric tick labels automatically.
+- **`width`** — colorbar thickness as a fraction of the axes (default 0.046).
+- **`label_fontsize`** / **`tick_fontsize`** — override the font sizes set by `publication()` or `presentation()`.
+
+```python
+climplot.add_colorbar(cs, ax, 'Precip (mm/day)',
+                      max_ticks=7, width=0.03, tick_fontsize=7)
+```
 
 ---
 
@@ -687,6 +730,8 @@ cs = climplot.plot_ocean_field(ax, geolon_c, geolat_c, data, wet_mask=wet)
 | `climplot.anomaly_cmap(vmin, vmax, interval)` | Diverging colormap for anomalies |
 | `climplot.sequential_cmap(vmin, vmax, interval)` | Sequential colormap for positive data |
 | `climplot.discrete_cmap(vmin, vmax, interval)` | General discrete colormap |
+| `climplot.auto_levels(vmin, vmax, n_levels)` | Pick a nice interval and generate levels |
+| `climplot.log_cmap(vmin, vmax, per_decade)` | Log-spaced discrete colormap |
 | `climplot.map_figure()` | Create map with Cartopy projection |
 | `climplot.plot_atmos_field(ax, lon, lat, data)` | Plot atmosphere field: light-gray land underneath → data (alpha=0.85) → thin coastlines on top |
 | `climplot.plot_ocean_field(ax, lon, lat, data)` | Plot ocean field on native model grid (bundles background + mask + plot) |

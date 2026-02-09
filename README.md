@@ -91,6 +91,28 @@ For difference plots where near-zero values should appear neutral:
 cmap, norm, levels = climplot.anomaly_cmap(-0.3, 0.3, 0.05, center_on_white=True)
 ```
 
+### Auto-Levels
+When you don't know the data range in advance, `auto_levels` picks a nice interval automatically:
+
+```python
+interval, levels = climplot.auto_levels(-2.7, 2.7, n_levels=10)
+cmap, norm, _ = climplot.discrete_cmap(levels[0], levels[-1], interval)
+```
+
+### Log-Scale Colormap
+For data spanning orders of magnitude (e.g., tracer concentrations):
+
+```python
+cmap, norm, levels = climplot.log_cmap(0.01, 100, per_decade=3)
+```
+
+### Colorbar Customization
+`add_colorbar` supports keyword arguments for tick density and sizing:
+
+```python
+climplot.add_colorbar(cs, ax, 'Precip (mm/day)', max_ticks=7, width=0.03)
+```
+
 ## Maps
 
 ### Projections

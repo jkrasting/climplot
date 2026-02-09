@@ -121,3 +121,58 @@ climplot.save_figure("atmos_temperature.png")
 - **Default land color**: `#808080` (medium gray) for ocean workflows; `#e0e0e0` (light gray) for `plot_atmos_field()`.
 - **Default projection**: Robinson, centered on 180° (Pacific-centered).
 - **Colormap intervals**: Use round numbers ending in 0, 1, 2, or 5.
+
+## Colormap & Colorbar Reference
+
+### Colormap Construction Functions
+
+| Data type | Function | Example use case |
+|---|---|---|
+| Anomaly (centered on zero) | `anomaly_cmap` | Temperature bias, SSH anomaly |
+| Positive-only | `sequential_cmap` | Precipitation, wind speed, ice concentration |
+| General discrete | `discrete_cmap` | SLP (non-zero-centered ranges) |
+| Auto-picked interval | `auto_levels` + `discrete_cmap` | Unknown data range |
+| Log-spaced | `log_cmap` | Concentration spanning decades |
+| Categorical | `categorical_cmap` | Land-use types |
+
+### `center_on_white`
+
+Use `center_on_white=True` on difference/bias plots where near-zero values should be visually neutral. It adds a white band at ±interval/2 around zero by building a `ListedColormap` with one color per interval. Pass it to `anomaly_cmap` or `discrete_cmap`:
+
+```python
+cmap, norm, levels = climplot.anomaly_cmap(-0.3, 0.3, 0.05, center_on_white=True)
+```
+
+### `auto_levels`
+
+When the data range isn't known in advance, `auto_levels` picks a "nice" interval (significant digit of 1, 2, or 5) and snaps the range to clean boundaries:
+
+```python
+interval, levels = climplot.auto_levels(data.min(), data.max(), n_levels=10)
+cmap, norm, _ = climplot.discrete_cmap(levels[0], levels[-1], interval)
+```
+
+### `log_cmap`
+
+For data spanning orders of magnitude. `per_decade` controls boundary density: 1 = powers of 10, 2 = half-decades, 3 = 1-2-5 sequence. `vmin` must be > 0.
+
+```python
+cmap, norm, levels = climplot.log_cmap(0.01, 100, per_decade=3)
+```
+
+### Colorbar Behavior
+
+`add_colorbar` automatically:
+- Thins ticks to ≤9 (configurable via `max_ticks`), preferring round values
+- Ensures symmetric colormaps get symmetric tick labels
+- Suppresses minor ticks
+- Formats labels cleanly (integers without decimals, minimal decimal precision)
+- Respects `publication()`/`presentation()` font sizes
+
+Overridable kwargs: `max_ticks` (default 9), `min_ticks` (default 5), `width` (colorbar thickness as fraction of axes), `label_fontsize`, `tick_fontsize`.
+
+### Common Colormap Mistakes
+
+8. **Using awkward intervals** (e.g., 0.07 instead of 0.05) — always pick intervals ending in 0, 1, 2, or 5.
+9. **Forgetting `center_on_white` for bias plots** — without it, near-zero differences blend with the gradient and are hard to distinguish.
+10. **Using `log_cmap` with `vmin <= 0`** — logarithmic scales require strictly positive values; `log_cmap` raises `ValueError` if `vmin <= 0`.

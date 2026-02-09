@@ -41,6 +41,8 @@ from .colormaps import (
     categorical_cmap,
     discrete_cmap,
     list_colormaps,
+    auto_levels,
+    log_cmap,
 )
 
 # Map functions
@@ -99,6 +101,8 @@ __all__ = [
     "categorical_cmap",
     "discrete_cmap",
     "list_colormaps",
+    "auto_levels",
+    "log_cmap",
     # Maps
     "map_figure",
     "add_land_overlay",

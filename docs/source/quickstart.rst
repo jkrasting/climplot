@@ -54,6 +54,14 @@ Creating a Map
    # Save
    climplot.save_figure('my_map.png')
 
+When the data range isn't known in advance, ``auto_levels`` picks a nice
+interval automatically:
+
+.. code-block:: python
+
+   interval, levels = climplot.auto_levels(data.min(), data.max())
+   cmap, norm, _ = climplot.discrete_cmap(levels[0], levels[-1], interval)
+
 Atmosphere Map
 ~~~~~~~~~~~~~~
 

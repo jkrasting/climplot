@@ -17,6 +17,8 @@ Colormap Functions
 .. autofunction:: climplot.categorical_cmap
 .. autofunction:: climplot.discrete_cmap
 .. autofunction:: climplot.list_colormaps
+.. autofunction:: climplot.auto_levels
+.. autofunction:: climplot.log_cmap
 
 Map Functions
 -------------

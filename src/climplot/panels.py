@@ -139,34 +139,218 @@ def add_panel_labels(
         )
 
 
-def _thin_colorbar_ticks(cbar, max_ticks=7):
-    """Reduce colorbar ticks to at most *max_ticks* evenly-spaced values.
+def _roundness_score(value):
+    """Score how 'round' a number is for use as a tick label.
 
-    The auto-generated ticks are checked first; if fewer than
-    *max_ticks* are present they are left untouched.  Otherwise, for
-    ``BoundaryNorm`` colorbars, tick positions are replaced with
-    *max_ticks* values evenly spaced between the first and last
-    boundary (rounded to remove floating-point noise).  For other norms,
-    auto-generated ticks are thinned by selecting evenly-spaced indices.
+    Returns a higher score for rounder values.  Integers are strongly
+    preferred over fractional values.  Within each tier, trailing zeros
+    and last-digit quality (0 > 5 > even > odd) provide further
+    discrimination.
+
+    Score tiers:
+    - Zero: 30 (modest bonus — important dividing line, but must not
+      dominate sum-based scoring)
+    - Integers: 20+ (bonus for trailing zeros and last-digit quality)
+    - Fractions: 1–12 (penalty for more decimal places)
     """
-    ticks = cbar.get_ticks()
-    if len(ticks) < max_ticks:
-        return
+    if value == 0:
+        return 30
 
+    abs_val = abs(value)
+
+    # Integer tier — strongly preferred
+    if np.isfinite(abs_val) and float(abs_val) == int(abs_val) and abs_val < 1e15:
+        int_val = int(abs_val)
+        s = str(int_val)
+        trailing_zeros = len(s) - len(s.rstrip("0"))
+        base = 20 + trailing_zeros * 3
+        # Last non-zero digit preference: 5 > even > odd
+        nz = s.rstrip("0")
+        if nz:
+            last = int(nz[-1])
+            if last == 5:
+                base += 2
+            elif last % 2 == 0:
+                base += 1
+        return base
+
+    # Fractional tier — penalise more decimal places
+    s = f"{abs_val:.10g}"
+    if "." in s:
+        dec_part = s.split(".")[1].rstrip("0")
+        n_decimals = len(dec_part)
+        base = max(1, 10 - n_decimals * 2)
+        # Last decimal digit preference: 5 > even > odd
+        if dec_part:
+            last = int(dec_part[-1])
+            if last == 5:
+                base += 2
+            elif last % 2 == 0:
+                base += 1
+        return base
+
+    return 15
+
+
+def _is_symmetric(boundaries):
+    """Return True if *boundaries* are symmetric about zero."""
+    return len(boundaries) > 2 and np.allclose(boundaries, -boundaries[::-1])
+
+
+def _score_subset(subset):
+    """Score a tick subset by total roundness + uniform-spacing bonus."""
+    score = sum(_roundness_score(v) for v in subset)
+    gaps = np.diff(subset)
+    if len(gaps) > 0 and np.allclose(gaps, gaps[0]):
+        score += 20
+    return score
+
+
+def _best_stride_subset(boundaries, max_ticks, min_ticks):
+    """Find the best stride+offset subset of *boundaries*.
+
+    Does **not** force endpoints — the stride pattern alone decides
+    which boundaries appear.  Returns None if no valid subset exists.
+    """
+    n = len(boundaries)
+    min_stride = max(1, int(np.ceil(n / max_ticks)))
+    best_subset = None
+    best_score = -1
+
+    for stride in range(min_stride, 2 * min_stride + 1):
+        for offset in range(stride):
+            subset = boundaries[offset::stride]
+            if len(subset) > max_ticks or len(subset) < min_ticks:
+                continue
+            score = _score_subset(subset)
+            if score > best_score:
+                best_score = score
+                best_subset = subset
+
+    # Fallback: relax min_ticks if nothing was found
+    if best_subset is None:
+        for stride in range(min_stride, 2 * min_stride + 1):
+            for offset in range(stride):
+                subset = boundaries[offset::stride]
+                if len(subset) > max_ticks:
+                    continue
+                if len(subset) < 2:
+                    continue
+                score = _score_subset(subset)
+                if score > best_score:
+                    best_score = score
+                    best_subset = subset
+
+    return best_subset
+
+
+def _select_symmetric_ticks(boundaries, max_ticks, min_ticks):
+    """Select ticks for boundaries that are symmetric about zero.
+
+    Runs stride+offset on the non-negative half, then mirrors to
+    guarantee symmetric labels on both sides of zero.
+    """
+    pos = boundaries[boundaries >= 0]  # includes 0 if present
+
+    # Budget: half the max_ticks for each side, plus zero in the middle
+    has_zero = np.isclose(pos[0], 0.0) if len(pos) > 0 else False
+    half_max = max_ticks // 2
+    if has_zero:
+        half_max = (max_ticks - 1) // 2  # reserve slot for zero
+
+    # Find best subset of positive-only boundaries (exclude zero)
+    pos_only = pos[pos > 0]
+    if len(pos_only) == 0:
+        return boundaries  # degenerate
+
+    best_pos = None
+    best_score = -1
+    n = len(pos_only)
+    min_stride = max(1, int(np.ceil(n / half_max))) if half_max > 0 else 1
+
+    for stride in range(min_stride, 2 * min_stride + 1):
+        for offset in range(stride):
+            subset = pos_only[offset::stride]
+            if len(subset) > half_max:
+                continue
+            if len(subset) < 1:
+                continue
+            score = _score_subset(subset)
+            if score > best_score:
+                best_score = score
+                best_pos = subset
+
+    if best_pos is None:
+        best_pos = pos_only  # fallback: use all
+
+    # Mirror: negative side is the reverse of positive
+    neg = -best_pos[::-1]
+    if has_zero:
+        result = np.concatenate([neg, [0.0], best_pos])
+    else:
+        result = np.concatenate([neg, best_pos])
+
+    return result
+
+
+def _thin_colorbar_ticks(cbar, max_ticks=9, min_ticks=5):
+    """Reduce colorbar ticks to between *min_ticks* and *max_ticks*.
+
+    For ``BoundaryNorm`` colorbars, selects actual boundary values using
+    a stride+offset search that maximises tick "roundness" (integers
+    preferred, clean last digits preferred).  Candidate subsets with
+    fewer than *min_ticks* are rejected to avoid overly sparse labels.
+
+    Symmetric boundaries (diverging colormaps) are handled by selecting
+    ticks on the positive half and mirroring, guaranteeing symmetric
+    labels.  Endpoints are **not** forced — the stride pattern alone
+    decides which boundaries appear, avoiding edge crowding.
+
+    For other norms, thins auto-generated ticks by selecting
+    evenly-spaced indices.
+    """
     norm = cbar.mappable.norm
     if hasattr(norm, "boundaries"):
         boundaries = np.asarray(norm.boundaries)
-        # Use linspace to get clean, evenly-spaced values across the range
-        subset = np.linspace(boundaries[0], boundaries[-1], max_ticks)
-        # Round to remove floating-point noise (e.g. 5.55e-17 → 0.0)
-        span = abs(boundaries[-1] - boundaries[0])
-        decimals = max(0, int(-np.floor(np.log10(span / max_ticks))) + 2)
-        subset = np.round(subset, decimals)
+        n = len(boundaries)
+        if n <= max_ticks:
+            cbar.set_ticks(boundaries)
+            return
+
+        if _is_symmetric(boundaries):
+            subset = _select_symmetric_ticks(boundaries, max_ticks, min_ticks)
+        else:
+            subset = _best_stride_subset(boundaries, max_ticks, min_ticks)
+
+        if subset is not None:
+            cbar.set_ticks(subset)
     else:
+        ticks = cbar.get_ticks()
+        if len(ticks) <= max_ticks:
+            return
         indices = np.round(np.linspace(0, len(ticks) - 1, max_ticks)).astype(int)
         subset = ticks[indices]
+        cbar.set_ticks(subset)
 
-    cbar.set_ticks(subset)
+
+def _format_colorbar_ticks(cbar):
+    """Apply clean tick formatting to a colorbar.
+
+    Shows integers without decimals, floats with minimal precision, and
+    zero as ``'0'``.
+    """
+    from matplotlib.ticker import FuncFormatter
+
+    def _clean_label(x, pos):
+        if x == 0:
+            return "0"
+        if np.isfinite(x) and float(x) == int(x) and abs(x) < 1e15:
+            return f"{int(x)}"
+        return f"{x:.10g}"
+
+    formatter = FuncFormatter(_clean_label)
+    cbar.ax.xaxis.set_major_formatter(formatter)
+    cbar.ax.yaxis.set_major_formatter(formatter)
 
 
 def add_colorbar(
@@ -193,7 +377,15 @@ def add_colorbar(
     extend : str, optional
         Out-of-range handling. Default is 'both'.
     **kwargs
-        Additional arguments passed to plt.colorbar()
+        Additional keyword arguments.  The following are handled
+        specially before passing the rest to ``plt.colorbar()``:
+
+        - *max_ticks* (int): maximum number of colorbar ticks (default 9).
+        - *min_ticks* (int): minimum number of colorbar ticks (default 5).
+        - *width* (float): colorbar thickness as a fraction of axes
+          (maps to the ``fraction`` argument; default 0.046).
+        - *label_fontsize*: font size for the label (default from rcParams).
+        - *tick_fontsize*: font size for tick labels (default from rcParams).
 
     Returns
     -------
@@ -205,20 +397,28 @@ def add_colorbar(
     >>> cs = ax.pcolormesh(lon, lat, data)
     >>> cbar = climplot.add_colorbar(cs, ax, 'Temperature (K)')
     """
-    max_ticks = kwargs.pop("max_ticks", 7)
+    max_ticks = kwargs.pop("max_ticks", 9)
+    min_ticks = kwargs.pop("min_ticks", 5)
+    width = kwargs.pop("width", None)
+    label_fontsize = kwargs.pop("label_fontsize", plt.rcParams.get("axes.labelsize", 8))
+    tick_fontsize = kwargs.pop("tick_fontsize", plt.rcParams.get("xtick.labelsize", 8))
+
+    fraction = width if width is not None else 0.046
 
     if orientation == "horizontal":
-        cbar_kwargs = {"orientation": "horizontal", "pad": 0.05, "fraction": 0.046, "aspect": 35}
+        cbar_kwargs = {"orientation": "horizontal", "pad": 0.05, "fraction": fraction, "aspect": 35}
     else:
-        cbar_kwargs = {"orientation": "vertical", "pad": 0.05, "fraction": 0.046, "aspect": 35}
+        cbar_kwargs = {"orientation": "vertical", "pad": 0.05, "fraction": fraction, "aspect": 35}
 
     cbar_kwargs.update(kwargs)
     cbar = plt.colorbar(mappable, ax=ax, extend=extend, **cbar_kwargs)
-    cbar.set_label(label, fontsize=8)
-    cbar.ax.tick_params(labelsize=8)
+    cbar.set_label(label, fontsize=label_fontsize)
+    cbar.ax.tick_params(labelsize=tick_fontsize)
+    cbar.minorticks_off()
+    _format_colorbar_ticks(cbar)
 
     if max_ticks is not None:
-        _thin_colorbar_ticks(cbar, max_ticks)
+        _thin_colorbar_ticks(cbar, max_ticks, min_ticks)
 
     return cbar
 
@@ -261,7 +461,10 @@ def bottom_colorbar(
     ...     cs = ax.pcolormesh(lon, lat, data)
     >>> cbar = climplot.bottom_colorbar(cs, fig, axes, 'SSH (m)')
     """
-    max_ticks = kwargs.pop("max_ticks", 7)
+    max_ticks = kwargs.pop("max_ticks", 9)
+    min_ticks = kwargs.pop("min_ticks", 5)
+    label_fontsize = kwargs.pop("label_fontsize", plt.rcParams.get("axes.labelsize", 8))
+    tick_fontsize = kwargs.pop("tick_fontsize", plt.rcParams.get("xtick.labelsize", 8))
 
     # Flatten axes
     if hasattr(axes, "flatten"):
@@ -279,11 +482,13 @@ def bottom_colorbar(
         extend=extend,
         **kwargs,
     )
-    cbar.set_label(label, fontsize=8)
-    cbar.ax.tick_params(labelsize=8)
+    cbar.set_label(label, fontsize=label_fontsize)
+    cbar.ax.tick_params(labelsize=tick_fontsize)
+    cbar.minorticks_off()
+    _format_colorbar_ticks(cbar)
 
     if max_ticks is not None:
-        _thin_colorbar_ticks(cbar, max_ticks)
+        _thin_colorbar_ticks(cbar, max_ticks, min_ticks)
 
     return cbar
 
