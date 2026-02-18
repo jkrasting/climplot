@@ -434,6 +434,9 @@ def bottom_colorbar(
     """
     Add a single colorbar below all panels.
 
+    The colorbar is manually positioned so it is always at least *min_width*
+    wide (as a fraction of figure width) and horizontally centered.
+
     Parameters
     ----------
     mappable : ScalarMappable
@@ -447,7 +450,25 @@ def bottom_colorbar(
     extend : str, optional
         Out-of-range handling. Default is 'both'.
     **kwargs
-        Additional arguments passed to fig.colorbar()
+        Additional keyword arguments.  The following are handled specially:
+
+        - *max_ticks* (int): maximum number of colorbar ticks (default 9).
+        - *min_ticks* (int): minimum number of colorbar ticks (default 5).
+        - *label_fontsize*: font size for the label (default from rcParams).
+        - *tick_fontsize*: font size for tick labels (default from rcParams).
+        - *pad* (float): fraction of the axes height to leave between the
+          data axes and the colorbar (default 0.05; passed to
+          ``fig.colorbar``).
+        - *fraction* (float): fraction of the axes height to use for the
+          colorbar (default 0.03; passed to ``fig.colorbar``).
+        - *aspect* (int): ratio of colorbar long to short dimension
+          (default 35; passed to ``fig.colorbar``).
+        - *min_width* (float): minimum colorbar width as a fraction of total
+          figure width (default 0.60).  When the axes span is wider, the
+          colorbar expands to match.
+        - *max_width* (float): maximum colorbar width as a fraction of total
+          figure width (default 0.80).  Caps the width even when the axes
+          span is larger.
 
     Returns
     -------
@@ -468,20 +489,51 @@ def bottom_colorbar(
     pad = kwargs.pop("pad", 0.05)
     fraction = kwargs.pop("fraction", 0.03)
     aspect = kwargs.pop("aspect", 35)
+    min_width = kwargs.pop("min_width", 0.60)
+    max_width = kwargs.pop("max_width", 0.80)
 
     # Flatten axes
     if hasattr(axes, "flatten"):
         axes_flat = axes.flatten()
     else:
-        axes_flat = axes
+        axes_flat = list(axes)
 
-    cbar = fig.colorbar(
+    # Step 1: Create a temporary colorbar using ax= so matplotlib shrinks the
+    # data axes to make room (guarantees no overlap with tick labels).
+    _temp_cbar = fig.colorbar(
         mappable,
         ax=list(axes_flat),
         orientation="horizontal",
         pad=pad,
         fraction=fraction,
         aspect=aspect,
+        extend=extend,
+    )
+
+    # Step 2: Draw so constrained layout finalises all positions, then freeze.
+    fig.canvas.draw()
+    fig.set_layout_engine("none")
+
+    # Step 3: Read the correct vertical position and data-axes span.
+    temp_pos = _temp_cbar.ax.get_position()
+    cbar_y0 = temp_pos.y0
+    cbar_height = temp_pos.height
+    pos_bboxes = [ax.get_position() for ax in axes_flat]
+    axes_span = max(b.x1 for b in pos_bboxes) - min(b.x0 for b in pos_bboxes)
+
+    # Step 4: Discard the narrow temp colorbar (data axes stay frozen).
+    _temp_cbar.ax.remove()
+
+    # Step 5: Build a new, wide, centered axes for the final colorbar.
+    cbar_width = min(max_width, max(min_width, axes_span))
+    cbar_x0 = 0.5 - cbar_width / 2
+    cbar_x0 = max(0.0, cbar_x0)
+    cbar_x0 = min(cbar_x0, 1.0 - cbar_width)
+    cax = fig.add_axes([cbar_x0, cbar_y0, cbar_width, cbar_height])
+    cbar = fig.colorbar(
+        mappable,
+        cax=cax,
+        orientation="horizontal",
         extend=extend,
         **kwargs,
     )

@@ -247,3 +247,79 @@ class TestAddColorbar:
         # After minorticks_off(), there should be no minor ticks visible
         assert len(minor_ticks) == 0 or all(not t.get_visible() for t in minor_ticks)
         plt.close(fig)
+
+
+class TestBottomColorbar:
+    """Tests for bottom_colorbar — minimum width and centering."""
+
+    def _make_panels(self, nrows=2, ncols=2):
+        cmap, norm, _ = climplot.anomaly_cmap(-1, 1, 0.2)
+        fig, axes = climplot.panel_figure(nrows, ncols)
+        data = np.random.rand(10, 10) * 2 - 1
+        cs = None
+        for ax in axes.flat:
+            cs = ax.pcolormesh(data, cmap=cmap, norm=norm)
+        return fig, axes, cs
+
+    def teardown_method(self, method):
+        plt.close("all")
+
+    def test_returns_colorbar(self):
+        fig, axes, cs = self._make_panels()
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test (units)")
+        assert cbar is not None
+
+    def test_width_at_least_60_pct(self):
+        """Colorbar width must be ≥ 60% of figure width by default."""
+        fig, axes, cs = self._make_panels()
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test")
+        assert cbar.ax.get_position().width >= 0.60
+
+    def test_is_centered(self):
+        """Colorbar center must be at x=0.5 (±0.01) in figure coordinates."""
+        fig, axes, cs = self._make_panels()
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test")
+        pos = cbar.ax.get_position()
+        center = pos.x0 + pos.width / 2
+        assert abs(center - 0.5) < 0.01
+
+    def test_min_width_kwarg(self):
+        """min_width kwarg overrides the 60% floor."""
+        fig, axes, cs = self._make_panels()
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test", min_width=0.40)
+        assert cbar.ax.get_position().width >= 0.40
+
+    def test_wide_axes_span_preserved(self):
+        """Colorbar ≥ axes span when axes are already wider than min_width."""
+        fig, axes, cs = self._make_panels(nrows=2, ncols=4)
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test")
+        bboxes = [ax.get_position() for ax in axes.flat]
+        axes_span = max(b.x1 for b in bboxes) - min(b.x0 for b in bboxes)
+        assert cbar.ax.get_position().width >= axes_span - 0.01
+
+    def test_single_panel(self):
+        """Works with 1×1 panel; still at least 60% wide."""
+        cmap, norm, _ = climplot.anomaly_cmap(-1, 1, 0.2)
+        fig, axes = climplot.panel_figure(1, 1)
+        cs = axes[0, 0].pcolormesh(np.random.rand(5, 5) * 2 - 1,
+                                    cmap=cmap, norm=norm)
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test")
+        assert cbar.ax.get_position().width >= 0.60
+
+    def test_max_width_kwarg(self):
+        """max_width kwarg caps the colorbar width."""
+        fig, axes, cs = self._make_panels(nrows=2, ncols=4)
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test", max_width=0.70)
+        assert cbar.ax.get_position().width <= 0.70 + 0.01
+
+    def test_default_max_width(self):
+        """Colorbar width must be ≤ 80% of figure width by default."""
+        fig, axes, cs = self._make_panels()
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test")
+        assert cbar.ax.get_position().width <= 0.80 + 0.01
+
+    def test_minor_ticks_off(self):
+        fig, axes, cs = self._make_panels()
+        cbar = climplot.bottom_colorbar(cs, fig, axes, "Test")
+        minor = cbar.ax.xaxis.get_minor_ticks()
+        assert len(minor) == 0 or all(not t.get_visible() for t in minor)
